@@ -20,22 +20,25 @@ typedef struct {
     int is_checked;
 } Pin;
 
-void check_pin(Pin *pin) {
+void check_pin(Pin *pin, int index) {
     // Проверка случайной булавки
     usleep(rand() % 1000); // Имитация времени проверки
     pin->is_curved = (rand() % 2 == 0) ? 0 : 1; // 50% шанс сделать булавку не кривой
+    printf("Worker %d checked pin.\n", index);
 }
 
-void sharpen_pin(Pin *pin) {
+void sharpen_pin(Pin *pin, int index) {
     // Заточка случайной булавки
     usleep(rand() % 1000); // Имитация времени заточки
     pin->is_sharpened = 1;
+    printf("Worker %d sharpened pin.\n", index);
 }
 
-void quality_control(Pin *pin) {
+void quality_control(Pin *pin, int index) {
     // Проверка качества случайной булавки
     usleep(rand() % 1000); // Имитация времени контроля качества
     pin->is_checked = 1;
+    printf("Worker %d quality controlled pin.\n", index);
 }
 
 int main() {
@@ -70,7 +73,7 @@ int main() {
         if (pid == 0) { // Child process
             for (int j = i; j < SHARED_MEMORY_SIZE / sizeof(Pin); j += 3) {
                 sem_wait(sem); // Ожидание доступа к разделяемой памяти
-                check_pin(&pins[j]); // Проверка булавки
+                check_pin(&pins[j], i); // Проверка булавки
                 sem_post(sem); // Освобождение доступа к разделяемой памяти
             }
             exit(EXIT_SUCCESS);
@@ -87,7 +90,7 @@ int main() {
             for (int j = i; j < SHARED_MEMORY_SIZE / sizeof(Pin); j += 5) {
                 sem_wait(sem); // Ожидание доступа к разделяемой памяти
                 if (!pins[j].is_curved) {
-                    sharpen_pin(&pins[j]); // Заточка булавки, если она не кривая
+                    sharpen_pin(&pins[j], i); // Заточка булавки, если она не кривая
                 }
                 sem_post(sem); // Освобождение доступа к разделяемой памяти
             }
@@ -105,7 +108,7 @@ int main() {
             for (int j = i; j < SHARED_MEMORY_SIZE / sizeof(Pin); j += 2) {
                 sem_wait(sem); // Ожидание доступа к разделяемой памяти
                 if (pins[j].is_sharpened) {
-                    quality_control(&pins[j]); // Контроль качества заточенной булавки
+                    quality_control(&pins[j], i); // Контроль качества заточенной булавки
                 }
                 sem_post(sem); // Освобождение доступа к разделяемой памяти
             }
@@ -120,8 +123,7 @@ int main() {
     for (int i = 0; i < 10; ++i) {
         wait(NULL);
     }
-
-    // Отсоединение разделяемой памяти
+// Отсоединение разделяемой памяти
     if (shmdt(pins) == -1) {
         perror("shmdt");
         exit(EXIT_FAILURE);
@@ -146,4 +148,3 @@ int main() {
 
     return 0;
 }
-
