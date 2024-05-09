@@ -6,10 +6,12 @@
 #include <sys/sem.h>
 #include <sys/shm.h>
 #include <sys/wait.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <semaphore.h>
 #include <time.h>
 
 #define SHARED_MEMORY_SIZE 1024
-#define SEMAPHORE_KEY 1234
 
 typedef struct {
     int is_curved;
@@ -37,14 +39,17 @@ void quality_control(Pin *pin) {
 
 int main() {
     // Создание семафора
-    int sem_id = semget(SEMAPHORE_KEY, 1, IPC_CREAT | 0666);
+    int sem_id = semget(IPC_PRIVATE, 1, IPC_CREAT | 0666);
     if (sem_id == -1) {
         perror("semget");
         exit(EXIT_FAILURE);
     }
 
     // Инициализация семафора
-    semctl(sem_id, 0, SETVAL, 1);
+    if (semctl(sem_id, 0, SETVAL, 1) == -1) {
+        perror("semctl");
+        exit(EXIT_FAILURE);
+    }
 
     // Создание разделяемой памяти
     int shm_id = shmget(IPC_PRIVATE, SHARED_MEMORY_SIZE, IPC_CREAT | 0666);
@@ -54,8 +59,8 @@ int main() {
     }
 
     // Прикрепление разделяемой памяти
-    Pin *pins = (Pin *) shmat(shm_id, NULL, 0);
-    if (pins == (void *) -1) {
+    Pin *pins = (Pin *)shmat(shm_id, NULL, 0);
+    if (pins == (void *)-1) {
         perror("shmat");
         exit(EXIT_FAILURE);
     }
@@ -69,9 +74,11 @@ int main() {
         pid = fork();
         if (pid == 0) { // Child process
             for (int j = i; j < SHARED_MEMORY_SIZE / sizeof(Pin); j += 3) {
-                sem_wait(sem_id); // Ожидание доступа к разделяемой памяти
+                struct sembuf sops = {0, -1, SEM_UNDO};
+                semop(sem_id, &sops, 1); // Ожидание доступа к разделяемой памяти
                 check_pin(&pins[j]); // Проверка булавки
-                sem_post(sem_id); // Освобождение доступа к разделяемой памяти
+                sops.sem_op = 1;
+                semop(sem_id, &sops, 1); // Освобождение доступа к разделяемой памяти
             }
             exit(EXIT_SUCCESS);
         } else if (pid < 0) {
@@ -85,11 +92,13 @@ int main() {
         pid = fork();
         if (pid == 0) { // Child process
             for (int j = i; j < SHARED_MEMORY_SIZE / sizeof(Pin); j += 5) {
-                sem_wait(sem_id); // Ожидание доступа к разделяемой памяти
+                struct sembuf sops = {0, -1, SEM_UNDO};
+                semop(sem_id, &sops, 1); // Ожидание доступа к разделяемой памяти
                 if (!pins[j].is_curved) {
                     sharpen_pin(&pins[j]); // Заточка булавки, если она не кривая
                 }
-                sem_post(sem_id); // Освобождение доступа к разделяемой памяти
+                sops.sem_op = 1;
+                semop(sem_id, &sops, 1); // Освобождение доступа к разделяемой памяти
             }
             exit(EXIT_SUCCESS);
         } else if (pid < 0) {
@@ -103,11 +112,13 @@ int main() {
         pid = fork();
         if (pid == 0) { // Child process
             for (int j = i; j < SHARED_MEMORY_SIZE / sizeof(Pin); j += 2) {
-                sem_wait(sem_id); // Ожидание доступа к разделяемой памяти
+                struct sembuf sops = {0, -1, SEM_UNDO};
+                semop(sem_id, &sops, 1); // Ожидание доступа к разделяемой памяти
                 if (pins[j].is_sharpened) {
                     quality_control(&pins[j]); // Контроль качества заточенной булавки
                 }
-                sem_post(sem_id); // Освобождение доступа к разделяемой памяти
+                sops.sem_op = 1;
+                semop(sem_id, &sops, 1); // Освобождение доступа к разделяемой памяти
             }
             exit(EXIT_SUCCESS);
         } else if (pid < 0) {
@@ -138,5 +149,6 @@ int main() {
         perror("semctl");
         exit(EXIT_FAILURE);
     }
+
     return 0;
 }
