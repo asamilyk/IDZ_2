@@ -19,22 +19,25 @@ typedef struct {
     int is_checked;
 } Pin;
 
-void check_pin(Pin *pin) {
+void check_pin(Pin *pin, int worker_id) {
     // Проверка случайной булавки
     usleep(rand() % 1000); // Имитация времени проверки
     pin->is_curved = (rand() % 2 == 0) ? 0 : 1; // 50% шанс сделать булавку не кривой
+    printf("Worker %d checked pin\n", worker_id);
 }
 
-void sharpen_pin(Pin *pin) {
+void sharpen_pin(Pin *pin, int worker_id) {
     // Заточка случайной булавки
     usleep(rand() % 1000); // Имитация времени заточки
     pin->is_sharpened = 1;
+    printf("Worker %d sharpened pin\n", worker_id);
 }
 
-void quality_control(Pin *pin) {
+void quality_control(Pin *pin, int worker_id) {
     // Проверка качества случайной булавки
     usleep(rand() % 1000); // Имитация времени контроля качества
     pin->is_checked = 1;
+    printf("Worker %d checked quality\n", worker_id);
 }
 
 int main() {
@@ -73,10 +76,11 @@ int main() {
     for (int i = 0; i < 3; ++i) {
         pid = fork();
         if (pid == 0) { // Child process
+            int worker_id = i;
             for (int j = i; j < SHARED_MEMORY_SIZE / sizeof(Pin); j += 3) {
                 struct sembuf sops = {0, -1, SEM_UNDO};
                 semop(sem_id, &sops, 1); // Ожидание доступа к разделяемой памяти
-                check_pin(&pins[j]); // Проверка булавки
+                check_pin(&pins[j], worker_id); // Проверка булавки
                 sops.sem_op = 1;
                 semop(sem_id, &sops, 1); // Освобождение доступа к разделяемой памяти
             }
@@ -91,11 +95,12 @@ int main() {
     for (int i = 0; i < 5; ++i) {
         pid = fork();
         if (pid == 0) { // Child process
+            int worker_id = i + 3;
             for (int j = i; j < SHARED_MEMORY_SIZE / sizeof(Pin); j += 5) {
                 struct sembuf sops = {0, -1, SEM_UNDO};
                 semop(sem_id, &sops, 1); // Ожидание доступа к разделяемой памяти
                 if (!pins[j].is_curved) {
-                    sharpen_pin(&pins[j]); // Заточка булавки, если она не кривая
+                    sharpen_pin(&pins[j], worker_id); // Заточка булавки, если она не кривая
                 }
                 sops.sem_op = 1;
                 semop(sem_id, &sops, 1); // Освобождение доступа к разделяемой памяти
@@ -111,11 +116,12 @@ int main() {
     for (int i = 0; i < 2; ++i) {
         pid = fork();
         if (pid == 0) { // Child process
+            int worker_id = i + 8;
             for (int j = i; j < SHARED_MEMORY_SIZE / sizeof(Pin); j += 2) {
                 struct sembuf sops = {0, -1, SEM_UNDO};
                 semop(sem_id, &sops, 1); // Ожидание доступа к разделяемой памяти
                 if (pins[j].is_sharpened) {
-                    quality_control(&pins[j]); // Контроль качества заточенной булавки
+                    quality_control(&pins[j], worker_id); // Контроль качества заточенной булавки
                 }
                 sops.sem_op = 1;
                 semop(sem_id, &sops, 1); // Освобождение доступа к разделяемой памяти
@@ -139,7 +145,9 @@ int main() {
     }
 
     // Удаление разделяемой памяти
-    if (shmctl(shm_id, IPC_RMID, NULL) == -1) {
+    if (shmctl(shm_id, IPC_RMID, NULL) == -
+
+            1) {
         perror("shmctl");
         exit(EXIT_FAILURE);
     }
