@@ -16,7 +16,7 @@ int main() {
     srand(time(NULL));
 
     // Получение идентификатора разделяемой памяти
-    int shm_id = shmget(SHM_KEY, SHM_SIZE, 0666);
+    int shm_id = shmget(SHM_KEY, SHM_SIZE, 0666 | IPC_CREAT);
     if (shm_id == -1) {
         perror("shmget");
         exit(EXIT_FAILURE);
