@@ -13,14 +13,12 @@ typedef struct {
 } Pin;
 
 int main() {
-    // Открытие именованного семафора
     sem_t *sem = sem_open(SEM_NAME, 0);
     if (sem == SEM_FAILED) {
         perror("sem_open");
         exit(EXIT_FAILURE);
     }
 
-    // Открытие разделяемой памяти
     int shm_fd = shm_open("/pin_memory", O_RDWR, 0666);
     if (shm_fd == -1) {
         perror("shm_open");
@@ -32,18 +30,16 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    // Проверка булавок
     while (1) {
-        sem_wait(sem); // Ожидание доступа к разделяемой памяти
+        sem_wait(sem);
         if (pins->is_produced) {
             printf("Checked a pin.\n");
-            pins->is_produced = 0; // Сброс состояния булавки после проверки
+            pins->is_produced = 0;
         }
-        sem_post(sem); // Освобождение доступа к разделяемой памяти
-        sleep(1); // Имитация времени проверки
+        sem_post(sem);
+        sleep(1);
     }
 
-    // Закрытие семафора
     sem_close(sem);
 
     return 0;
