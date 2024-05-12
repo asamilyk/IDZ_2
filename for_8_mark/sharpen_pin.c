@@ -1,19 +1,31 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/sem.h>
+#include <sys/shm.h>
+#include <time.h>
 
-#define SHM_SIZE 1024
-#define SHM_KEY 1234
+#define SHARED_MEMORY_SIZE 1024
+#define SEMAPHORE_KEY 1234
 
 typedef struct {
-    int is_produced;
+    int is_curved;
+    int is_sharpened;
+    int is_checked;
 } Pin;
 
 int main() {
-    // Получение идентификатора разделяемой памяти
-    int shm_id = shmget(SHM_KEY, SHM_SIZE, 0666);
+    // Получение семафора
+    int sem_id = semget(SEMAPHORE_KEY, 1, 0);
+    if (sem_id == -1) {
+        perror("semget");
+        exit(EXIT_FAILURE);
+    }
+
+    // Получение разделяемой памяти
+    int shm_id = shmget(IPC_PRIVATE, SHARED_MEMORY_SIZE, 0666);
     if (shm_id == -1) {
         perror("shmget");
         exit(EXIT_FAILURE);
@@ -26,13 +38,23 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
+    srand(time(NULL));
+
     // Заточка булавок
-    while (1) {
-        if (pins->is_produced) {
-            printf("Sharpened a pin.\n");
-            pins->is_produced = 0; // Сброс состояния булавки после заточки
+    for (int i = 0; i < SHARED_MEMORY_SIZE / sizeof(Pin); ++i) {
+        sem_wait(sem_id); // Ожидание доступа к разделяемой памяти
+        if (!pins[i].is_curved) {
+            printf("Sharpening pin %d...\n", i);
+            pins[i].is_sharpened = 1;
+            printf("Pin %d sharpened.\n", i);
         }
-        sleep(1); // Имитация времени заточки
+        sem_post(sem_id); // Освобождение доступа к разделяемой памяти
+    }
+
+    // Отсоединение разделяемой памяти
+    if (shmdt(pins) == -1) {
+        perror("shmdt");
+        exit(EXIT_FAILURE);
     }
 
     return 0;
