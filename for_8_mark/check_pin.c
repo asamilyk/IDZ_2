@@ -46,6 +46,7 @@ int main() {
     // Проверка булавок
     for (int i = 0; i < SHARED_MEMORY_SIZE / sizeof(Pin); ++i) {
         sem_wait(sem_id); // Ожидание доступа к разделяемой памяти
+        printf("Checking pin %d...\n", i);
         pins[i].is_curved = (rand() % 2 == 0) ? 0 : 1; // 50% шанс сделать булавку не кривой
         printf("Pin %d checked.\n", i);
         sem_post(sem_id); // Освобождение доступа к разделяемой памяти
